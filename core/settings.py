@@ -132,6 +132,13 @@ RQ_QUEUES = {
     },
 }
 
+# Task configuration
+# Timeouts for specific task types (in seconds)
+TASK_TIMEOUT_EMAIL = int(os.environ.get(
+    "TASK_TIMEOUT_EMAIL", default=300))  # 5 minutes
+TASK_TIMEOUT_VIDEO = int(os.environ.get(
+    "TASK_TIMEOUT_VIDEO", default=3600))  # 1 hour
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -194,7 +201,7 @@ SIMPLE_JWT = {
 
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours — also controls activation token expiry
 
-# Email
+
 EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
