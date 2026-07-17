@@ -1,8 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from ..models import CustomUser
+
+User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -81,3 +83,58 @@ class LoginSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer for password reset request.
+
+    Validates that the email exists in the database.
+    """
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        """Validate that user with this email exists.
+
+        Args:
+            value: Email address to validate
+
+        Raises:
+            ValidationError: If user with this email does not exist
+        """
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                'User with this email does not exist.'
+            )
+        return value
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer for password reset confirmation.
+
+    Validates new password and confirm password match, and that
+    password meets Django's password validation requirements.
+    """
+    new_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password]
+    )
+    confirm_password = serializers.CharField(write_only=True, required=True)
+
+    def validate(self, attrs):
+        """Validate that new_password and confirm_password match.
+
+        Args:
+            attrs: Dictionary containing new_password and confirm_password
+
+        Returns:
+            dict: Validated attributes
+
+        Raises:
+            ValidationError: If passwords do not match
+        """
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError(
+                {'confirm_password': 'Passwords do not match.'}
+            )
+        return attrs

@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .serializers import RegisterSerializer, LoginSerializer
+from .serializers import RegisterSerializer, LoginSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 from .utils import set_auth_cookies, clear_auth_cookies, set_access_cookie, blacklist_refresh_token
 from ..tokens import account_activation_token
 from core.task_service import TaskService
@@ -207,3 +207,137 @@ class CookieTokenRefreshView(TokenRefreshView):
             status=status.HTTP_200_OK
         )
         return set_access_cookie(response, access_token)
+
+
+class PasswordResetRequestView(APIView):
+    """Handle password reset request.
+
+    Sends a password reset link to the user's email if the account exists.
+    """
+
+    def post(self, request):
+        """Initiate password reset by sending reset link to email.
+
+        Validates that user with provided email exists, generates a
+        password reset token, constructs the reset link, and sends it
+        via email asynchronously.
+
+        Args:
+            request: HTTP request containing email
+
+        Returns:
+            Response: Success message if email is valid, or error if invalid
+        """
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        email = serializer.validated_data['email']
+        user = User.objects.get(email=email)
+
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        token = account_activation_token.make_token(user)
+
+        reset_path = reverse(
+            'password_confirm', kwargs={'uidb64': uidb64, 'token': token})
+        reset_link = request.build_absolute_uri(reset_path)
+
+        TaskService.send_password_reset_email(user.pk, reset_link)
+
+        return Response(
+            {'detail': 'An email has been sent to reset your password.',
+             'reset_path': reset_path},
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """Handle password reset confirmation.
+
+    Validates reset token and updates user's password.
+    """
+
+    def get(self, request, uidb64, token):
+        """Validate password reset link.
+
+        Validates that the reset token and uidb64 are valid.
+        Used when user clicks the reset link in email.
+
+        Args:
+            request: HTTP request
+            uidb64: Base64-encoded user ID
+            token: Password reset token
+
+        Returns:
+            Response: Success message if token is valid, or error if
+                token invalid or expired
+        """
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response(
+                {'detail': 'Invalid password reset link.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not account_activation_token.check_token(user, token):
+            return Response(
+                {'detail': 'Password reset link is invalid or has expired.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {'detail': 'Password reset link is valid. You can now set a new password.'},
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request, uidb64, token):
+        """Confirm password reset with token and new password.
+
+        Decodes the uidb64, validates the reset token, validates the
+        request body payload, and updates the user's password if all
+        validations pass.
+
+        Args:
+            request: HTTP request containing new_password and confirm_password
+            uidb64: Base64-encoded user ID
+            token: Password reset token
+
+
+        Returns:
+            Response: Success message if password reset, or error if
+                token invalid, expired, or passwords don't match
+        """
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response(
+                {'detail': 'Invalid password reset link.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not account_activation_token.check_token(user, token):
+            return Response(
+                {'detail': 'Password reset link is invalid or has expired.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+
+        return Response(
+            {'detail': 'Your Password has been successfully reset.'},
+            status=status.HTTP_200_OK,
+        )

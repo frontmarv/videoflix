@@ -66,3 +66,25 @@ class TaskService:
             activation_link,
             job_timeout=job_timeout,
         )
+
+    @staticmethod
+    def send_password_reset_email(user_pk, reset_link):
+        """
+        Enqueue a password reset email task.
+
+        Args:
+            user_pk: Primary key of the user to send password reset email to
+            reset_link: The password reset link to include in the email
+
+        Returns:
+            Job object from RQ
+        """
+        from authentication_app.tasks import send_password_reset_email_task
+
+        job_timeout = getattr(settings, 'TASK_TIMEOUT_EMAIL', 300)
+        return TaskService._enqueue_task(
+            send_password_reset_email_task,
+            user_pk,
+            reset_link,
+            job_timeout=job_timeout,
+        )
