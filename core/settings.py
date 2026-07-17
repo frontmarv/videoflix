@@ -49,8 +49,11 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
-
+    'authentication_app.apps.AuthenticationAppConfig',
+    'videos_app.apps.VideosAppConfig',
 ]
+
+AUTH_USER_MODEL = 'authentication_app.CustomUser'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -188,3 +191,15 @@ SIMPLE_JWT = {
     'ALGORITHM': os.getenv('JWT_ALGORITHM', 'HS256'),
     'BLACKLIST_AFTER_ROTATION': True,
 }
+
+PASSWORD_RESET_TIMEOUT = 86400  # 24 hours — also controls activation token expiry
+
+# Email
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@videoflix.com')
