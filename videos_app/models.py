@@ -6,8 +6,6 @@ class Video(models.Model):
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     original_file = models.FileField(upload_to='videos/original/')
-    original_resolution = models.CharField(
-        max_length=10, null=True, blank=True, help_text="Auflösung des hochgeladenen Videos")
     thumbnail_url = models.ImageField(
         upload_to='thumbnails/', null=True, blank=True)
     category = models.CharField(max_length=255, null=True, blank=True)

@@ -8,6 +8,7 @@ ENV/
 # Personal files
 nützlicheAnweisungen.txt
 copilot_django_drf_guidelines.md
+checklist.md
 
 # Python
 __pycache__/

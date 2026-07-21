@@ -133,11 +133,10 @@ RQ_QUEUES = {
 }
 
 # Task configuration
-# Timeouts for specific task types (in seconds)
 TASK_TIMEOUT_EMAIL = int(os.environ.get(
-    "TASK_TIMEOUT_EMAIL", default=300))  # 5 minutes
+    "TASK_TIMEOUT_EMAIL", default=300))
 TASK_TIMEOUT_VIDEO = int(os.environ.get(
-    "TASK_TIMEOUT_VIDEO", default=3600))  # 1 hour
+    "TASK_TIMEOUT_VIDEO", default=3600))
 
 
 # Password validation
