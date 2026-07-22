@@ -5,6 +5,12 @@ from .models import CustomUser
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
+    """Admin interface for CustomUser model.
+
+    Customizes Django admin to work with email-based authentication instead
+    of the default username field. Displays user status, permissions, and
+    important dates for account management.
+    """
     model = CustomUser
     list_display = ['email', 'username',
                     'is_activated', 'is_staff', 'is_active']

@@ -67,7 +67,26 @@ class LoginView(APIView):
 
 
 class RegisterView(APIView):
+    """Handle user registration and account creation.
+
+    Registers new users with email and password, creates activation token,
+    and sends activation email. User must activate account via email link
+    before logging in.
+    """
+
     def post(self, request):
+        """Register a new user account.
+
+        Validates registration data, creates user, generates activation token,
+        and sends activation email to user.
+
+        Args:
+            request: HTTP request containing email and password.
+
+        Returns:
+            Response: Created user info and token with status 201, or validation
+                errors with status 400.
+        """
         serializer = RegisterSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -96,7 +115,28 @@ class RegisterView(APIView):
 
 
 class ActivateAccountView(APIView):
+    """Handle user account activation via email link.
+
+    Validates the activation token and marks the user's account as activated
+    to enable login and full access to the platform.
+    """
+
     def get(self, request, uidb64, token):
+        """Activate user account using activation token from email.
+
+        Validates that the provided token matches the user and is not expired,
+        then sets the user's is_activated flag to True.
+
+        Args:
+            request: HTTP request
+            uidb64: Base64-encoded user ID
+            token: Account activation token
+
+        Returns:
+            Response: Success message if activation successful, or error with
+                400 status if token invalid or expired, or 200 status if
+                account already activated
+        """
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=uid)
@@ -194,18 +234,28 @@ class CookieTokenRefreshView(TokenRefreshView):
         if not refresh_token:
             return Response(
                 {'error': 'Refresh token not found in cookies'},
-                status=status.HTTP_401_UNAUTHORIZED
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         serializer = self.get_serializer(data={'refresh': refresh_token})
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(
+                {'error': 'Invalid refresh token'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
         access_token = serializer.validated_data.get('access')
+        refresh_token = serializer.validated_data.get('refresh')
+
         response = Response(
-            {'detail': 'Token refreshed'},
+            {
+                'detail': 'Token refreshed',
+                'access': str(access_token)
+            },
             status=status.HTTP_200_OK
         )
-        return set_access_cookie(response, access_token)
+
+        return set_auth_cookies(response, access_token, refresh_token)
 
 
 class PasswordResetRequestView(APIView):
