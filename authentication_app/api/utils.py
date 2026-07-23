@@ -92,6 +92,6 @@ def clear_auth_cookies(response):
     Returns:
         Response: Modified response object with cookies cleared
     """
-    response.delete_cookie('access_token', samesite='Lax')
-    response.delete_cookie('refresh_token', samesite='Lax')
+    response.delete_cookie('access_token')
+    response.delete_cookie('refresh_token')
     return response

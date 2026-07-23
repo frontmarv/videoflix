@@ -10,16 +10,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     Extends Django's AbstractBaseUser to provide email-based authentication
     instead of the default username. Tracks account activation status and
     password change timestamps for security purposes.
-
-    Attributes:
-        id: Unique identifier (UUID).
-        email: User email address, used as USERNAME_FIELD.
-        username: Optional username, defaults to email if not provided.
-        is_activated: Whether the user's email has been activated.
-        is_active: Whether the user account is active.
-        is_staff: Whether the user has staff permissions.
-        date_joined: Timestamp when user account was created.
-        password_changed_at: Timestamp of last password change.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)

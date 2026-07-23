@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.urls import reverse
+from django.http import HttpResponse, HttpResponseNotFound
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,6 +13,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .serializers import RegisterSerializer, LoginSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 from .utils import set_auth_cookies, clear_auth_cookies, set_access_cookie, blacklist_refresh_token
 from ..tokens import account_activation_token
+from ..email_templates import get_activation_email_template, get_password_reset_email_template
 from core.task_service import TaskService
 
 User = get_user_model()
@@ -95,10 +98,7 @@ class RegisterView(APIView):
 
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         token = account_activation_token.make_token(user)
-
-        activation_path = reverse(
-            'activate', kwargs={'uidb64': uidb64, 'token': token})
-        activation_link = request.build_absolute_uri(activation_path)
+        activation_link = f"{settings.FRONTEND_ACTIVATION_URL}?uid={uidb64}&token={token}"
 
         TaskService.send_activation_email(user.pk, activation_link)
 
@@ -204,7 +204,7 @@ class LogoutView(APIView):
             )
 
         response = Response(
-            {"detail": "Logout successful! All tokens have been invalidated."},
+            {"detail": "Logout successful! All tokens will be deleted. Refresh token is now invalid."},
             status=status.HTTP_200_OK
         )
         return clear_auth_cookies(response)
@@ -239,13 +239,13 @@ class CookieTokenRefreshView(TokenRefreshView):
 
         serializer = self.get_serializer(data={'refresh': refresh_token})
         if not serializer.is_valid():
-            return Response(
+            response = Response(
                 {'error': 'Invalid refresh token'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+            return clear_auth_cookies(response)
 
         access_token = serializer.validated_data.get('access')
-        refresh_token = serializer.validated_data.get('refresh')
 
         response = Response(
             {
@@ -255,7 +255,7 @@ class CookieTokenRefreshView(TokenRefreshView):
             status=status.HTTP_200_OK
         )
 
-        return set_auth_cookies(response, access_token, refresh_token)
+        return set_access_cookie(response, access_token)
 
 
 class PasswordResetRequestView(APIView):
@@ -289,16 +289,12 @@ class PasswordResetRequestView(APIView):
 
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         token = account_activation_token.make_token(user)
-
-        reset_path = reverse(
-            'password_confirm', kwargs={'uidb64': uidb64, 'token': token})
-        reset_link = request.build_absolute_uri(reset_path)
+        reset_link = f"{settings.FRONTEND_PASSWORD_RESET_URL}?uid={uidb64}&token={token}"
 
         TaskService.send_password_reset_email(user.pk, reset_link)
 
         return Response(
-            {'detail': 'An email has been sent to reset your password.',
-             'reset_path': reset_path},
+            {'detail': 'An email has been sent to reset your password.'},
             status=status.HTTP_200_OK,
         )
 
@@ -390,3 +386,25 @@ class PasswordResetConfirmView(APIView):
             {'detail': 'Your Password has been successfully reset.'},
             status=status.HTTP_200_OK,
         )
+
+
+def preview_activation_email(request):
+    """Render activation email HTML in browser (DEBUG only)."""
+    if not settings.DEBUG:
+        return HttpResponseNotFound("Not found")
+
+    activation_link = request.build_absolute_uri(
+        "/api/activate/demo/demo-token/")
+    _, html_message = get_activation_email_template(activation_link)
+    return HttpResponse(html_message)
+
+
+def preview_password_reset_email(request):
+    """Render password reset email HTML in browser (DEBUG only)."""
+    if not settings.DEBUG:
+        return HttpResponseNotFound("Not found")
+
+    reset_link = request.build_absolute_uri(
+        "/api/password_confirm/demo/demo-token/")
+    _, html_message = get_password_reset_email_template(reset_link)
+    return HttpResponse(html_message)

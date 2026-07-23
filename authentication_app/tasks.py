@@ -5,13 +5,40 @@ These functions are designed to be executed by django-rq workers.
 """
 
 import logging
+from pathlib import Path
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
+from email.mime.image import MIMEImage
+from .email_templates import get_activation_email_template, get_password_reset_email_template
 
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+
+def _attach_inline_logo(email: EmailMultiAlternatives, user_pk) -> None:
+    """Attach logo image as CID for HTML email rendering."""
+    logo_candidates = [
+        Path(settings.BASE_DIR) / 'media' / 'logo' / 'Videoflix_logo.png',
+        Path(settings.MEDIA_ROOT) / 'logo' / 'Videoflix_logo.png',
+    ]
+
+    for logo_path in logo_candidates:
+        if logo_path.exists():
+            with open(logo_path, 'rb') as img_file:
+                img_data = img_file.read()
+
+            logo = MIMEImage(img_data, _subtype='png')
+            logo.add_header('Content-ID', '<logo_image>')
+            logo.add_header('Content-Disposition', 'inline',
+                            filename='Videoflix_logo.png')
+            email.attach(logo)
+            return
+
+    logger.warning(
+        f"Could not attach logo image for user {user_pk}: no logo found in expected paths"
+    )
 
 
 def send_activation_email_task(user_pk, activation_link):
@@ -31,20 +58,20 @@ def send_activation_email_task(user_pk, activation_link):
     try:
         user = User.objects.get(pk=user_pk)
 
-        message = (
-            f'Hi {user.email},\n\n'
-            f'Please activate your account by clicking the link below:\n\n'
-            f'{activation_link}\n\n'
-            f'This link expires in 24 hours.\n'
-        )
+        plain_message, html_message = get_activation_email_template(
+            activation_link)
 
-        send_mail(
+        email = EmailMultiAlternatives(
             subject='Activate your Videoflix account',
-            message=message,
+            body=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+            to=[user.email],
         )
+        email.attach_alternative(html_message, "text/html")
+
+        _attach_inline_logo(email, user_pk)
+
+        email.send(fail_silently=False)
 
         logger.info(f"Activation email sent to user {user_pk} ({user.email})")
     except User.DoesNotExist:
@@ -73,29 +100,30 @@ def send_password_reset_email_task(user_pk, reset_link):
     try:
         user = User.objects.get(pk=user_pk)
 
-        message = (
-            f'Hi {user.email},\n\n'
-            f'Please reset your password by clicking the link below:\n\n'
-            f'{reset_link}\n\n'
-            f'This link expires in 24 hours.\n'
-        )
+        plain_message, html_message = get_password_reset_email_template(
+            reset_link)
 
-        send_mail(
+        # Create email with HTML alternative
+        email = EmailMultiAlternatives(
             subject='Reset your Videoflix password',
-            message=message,
+            body=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+            to=[user.email],
         )
+        email.attach_alternative(html_message, "text/html")
+
+        _attach_inline_logo(email, user_pk)
+
+        email.send(fail_silently=False)
 
         logger.info(
             f"Password reset email sent to user {user_pk} ({user.email})")
 
     except User.DoesNotExist:
         logger.error(
-            f"Tried to send activation email to non-existent user {user_pk}")
+            f"Tried to send password reset email to non-existent user {user_pk}")
         raise
     except Exception as e:
         logger.error(
-            f"Failed to send activation email to user {user_pk}: {str(e)}", exc_info=True)
+            f"Failed to send password reset email to user {user_pk}: {str(e)}", exc_info=True)
         raise

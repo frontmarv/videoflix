@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import RegisterView, ActivateAccountView, LoginView, LogoutView, CookieTokenRefreshView, PasswordResetRequestView, PasswordResetConfirmView
+from django.conf import settings
+from .views import RegisterView, ActivateAccountView, LoginView, LogoutView, CookieTokenRefreshView, PasswordResetRequestView, PasswordResetConfirmView, preview_activation_email, preview_password_reset_email
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -13,3 +14,11 @@ urlpatterns = [
     path('activate/<str:uidb64>/<str:token>/',
          ActivateAccountView.as_view(), name='activate'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += [
+        path('_preview/email/activation/', preview_activation_email,
+             name='preview_activation_email'),
+        path('_preview/email/password-reset/', preview_password_reset_email,
+             name='preview_password_reset_email'),
+    ]
